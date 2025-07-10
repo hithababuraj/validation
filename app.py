@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 from mongoengine import connect
 from models import User
-from datetime import datetime
+from bson.errors import InvalidId
+from bson import ObjectId
 
 
 
@@ -39,12 +40,16 @@ def filter_users():
 # Get Single User by ID
 @app.route('/users/<id>', methods=['GET'])
 def get_user(id):
-    user = User.objects(id=id).first()
-    if user:
-        u = user.to_mongo().to_dict()
-        u['_id'] = str(u['_id']) 
-        return jsonify(u)
-    return jsonify({"error": "User not found"}), 404
+    try:
+        obj_id = ObjectId(id)
+        user = User.objects(id=obj_id).first()
+        if user:
+            u = user.to_mongo().to_dict()
+            u['_id'] = str(u['_id']) 
+            return jsonify(u)
+        return jsonify({"error": "User not found"}), 404
+    except InvalidId:
+        return jsonify({"error": "Invalid user ID format"}), 400
 
 
 # Update User based on id
@@ -65,14 +70,22 @@ def update_user(id):
 # Delete User
 @app.route('/users/<id>', methods=['DELETE'])
 def delete_user(id):
-    data=request.json
-    user=User.objects(id=id).first()
+    try:
+        obj_id = ObjectId(id)
+        user = User.objects(id=obj_id).first()
 
-    if user:
-        user.delete()
-        return jsonify("user deleted")
-    else:
+        if user:
+            u = user.to_mongo().to_dict()
+            u['_id'] = str(u['_id'])
+            user.delete(u)
+            return jsonify("user deleted")
+    
         return jsonify("user not found")
+    except InvalidId:
+        return jsonify({"error": "Invalid user ID"}), 400
+
+    
+
     
 # User Login (Check email/password match and return success msg)
 @app.route('/login', methods=['POST'])
